@@ -1,12 +1,3 @@
-"""
-DES Implementation in Python
-
-Stage 1: Global DES tables + hex/binary helpers
-
-"""
-
-
-
 # -----------------------------------------------------------
 #  PC1: Permuted Choice 1 (64 → 56 bits)
 #  Removes parity bits and reorders key bits.
@@ -172,12 +163,49 @@ def hex16_to_bin64(hexa16):
 def bin64_to_hex16(bin64):
     return format(int(bin64, 2), "016X")
 
+# -----------------------------------------------------------
+# Generic permutation function
+# Takes a table (PC1, IP, FP, etc.) and rearranges bits.
+# -----------------------------------------------------------
+def apply_permutation(permutation_table, input_bits):
+    reordered_bits = ""
+    for index in permutation_table:
+        reordered_bits += input_bits[index - 1]  # DES tables use 1-based indexing
+    return reordered_bits
+
+# -----------------------------------------------------------
+# Circular left shift for key schedule
+# -----------------------------------------------------------
+def shift_left(half_key28, shift_value):
+    return half_key28[shift_value:] + half_key28[:shift_value]
+
+# -----------------------------------------------------------
+# XOR two equal-length binary strings
+# -----------------------------------------------------------
+def xor(a, b):
+    result = ""
+    for i in range(len(a)):
+        if a[i] == b[i]:
+            result += "0"
+        else:
+            result += "1"
+    return result
 
 if __name__ == "__main__":
+    # Hex <-> binary
     test_hex = "0123456789ABCDEF"
     bin_val = hex16_to_bin64(test_hex)
     back_hex = bin64_to_hex16(bin_val)
-
     print("Original:", test_hex)
-    print("Binary  :", bin_val)
     print("Back    :", back_hex)
+
+    # XOR test
+    a = "10101010"
+    b = "11001100"
+    print("xor(a, b) =", xor(a, b))
+
+    # Permutation length test
+    permuted = apply_permutation(IP, bin_val)
+    print("Permuted length:", len(permuted))
+
+
