@@ -1,3 +1,12 @@
+"""
+DES Implementation in Python
+
+Stage 1: Global DES tables + hex/binary helpers
+
+"""
+
+
+
 # -----------------------------------------------------------
 #  PC1: Permuted Choice 1 (64 → 56 bits)
 #  Removes parity bits and reorders key bits.
