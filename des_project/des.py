@@ -191,21 +191,52 @@ def xor(a, b):
             result += "1"
     return result
 
+
+# -----------------------------------------------------------
+# Generate 16 round subkeys (48 bits each)
+# -----------------------------------------------------------
+def generate_subkeys(key_64):
+    key_56 = apply_permutation(PC1, key_64)
+    C, D = key_56[:28], key_56[28:]
+    sub16keys_48  = []
+
+    for shift in SHIFTS:            # Apply left shifts schedule
+        C = shift_left(C, shift)
+        D = shift_left(D, shift)
+        CD_56 = C + D
+        CD_48 = apply_permutation(PC2, CD_56)  # Compress to 48 bits
+        sub16keys_48.append(CD_48)
+
+    return sub16keys_48
+
+# -----------------------------------------------------------
+# Apply all 8 S-boxes (48 bits → 32 bits)
+# -----------------------------------------------------------
+def apply_sboxes(bits_48):
+    bits_32  = ""
+    for i in range(8):
+        six_bits = bits_48[i*6:(i+1)*6]          # Slice 6 bits
+        row = int(six_bits[0] + six_bits[5], 2)  # First+last bits = row
+        col = int(six_bits[1:5], 2)              # Middle 4 bits = column
+        sbox_value = S_BOXES[i][row][col]
+        bits_32 += format(sbox_value , "04b")    # 4-bit output
+    return bits_32
+
+
+
+
+
 if __name__ == "__main__":
-    # Hex <-> binary
-    test_hex = "0123456789ABCDEF"
-    bin_val = hex16_to_bin64(test_hex)
-    back_hex = bin64_to_hex16(bin_val)
-    print("Original:", test_hex)
-    print("Back    :", back_hex)
+    key_hex = "133457799BBCDFF1"
+    key_bin = hex16_to_bin64(key_hex)
+    subkeys = generate_subkeys(key_bin)
+    print("Number of subkeys:", len(subkeys))
+    print("Length of one subkey:", len(subkeys[0]))
 
-    # XOR test
-    a = "10101010"
-    b = "11001100"
-    print("xor(a, b) =", xor(a, b))
+    # Test S-boxes with a simple pattern
+    test_48 = "101010" * 8
+    out_32 = apply_sboxes(test_48)
+    print("S-box output length:", len(out_32))
 
-    # Permutation length test
-    permuted = apply_permutation(IP, bin_val)
-    print("Permuted length:", len(permuted))
 
 
