@@ -224,19 +224,47 @@ def apply_sboxes(bits_48):
 
 
 
+# -----------------------------------------------------------
+# Feistel F-function:
+#  R → E → XOR key → S-boxes → P permutation → 32-bit output
+# -----------------------------------------------------------
+def feistel_function(right_32, subkeys_48):
+    right_48 = apply_permutation(E, right_32)
+    xor_48 = xor(right_48, subkeys_48)
+    sbox_32 = apply_sboxes(xor_48)
+    right_32_feistel = apply_permutation(P, sbox_32)
+    return right_32_feistel
+
+# -----------------------------------------------------------
+# DES encryption for one 64-bit block
+# -----------------------------------------------------------
+def des_encrypt_block_64(plaintext_64, key_64):
+    plaintext_64_IP = apply_permutation(IP, plaintext_64)
+    left_32, right_32 = plaintext_64_IP[:32], plaintext_64_IP[32:]
+    sub16keys_48 = generate_subkeys(key_64)
+
+    for i in range(16):
+        new_left  = right_32
+        new_right = xor(left_32, feistel_function(right_32, sub16keys_48[i]))
+        left_32, right_32  = new_left, new_right
+
+    swapped_64 = right_32 + left_32
+    ciphertext_64 = apply_permutation(FP, swapped_64)
+    return ciphertext_64
+
 
 
 if __name__ == "__main__":
-    key_hex = "133457799BBCDFF1"
-    key_bin = hex16_to_bin64(key_hex)
-    subkeys = generate_subkeys(key_bin)
-    print("Number of subkeys:", len(subkeys))
-    print("Length of one subkey:", len(subkeys[0]))
+    plaintext_hex = "0123456789ABCDEF"
+    key_hex       = "133457799BBCDFF1"
 
-    # Test S-boxes with a simple pattern
-    test_48 = "101010" * 8
-    out_32 = apply_sboxes(test_48)
-    print("S-box output length:", len(out_32))
+    plaintext_bin = hex16_to_bin64(plaintext_hex)
+    key_bin       = hex16_to_bin64(key_hex)
+
+    ciphertext_bin = des_encrypt_block_64(plaintext_bin, key_bin)
+    ciphertext_hex = bin64_to_hex16(ciphertext_bin)
+
+    print("Cipher (hex):", ciphertext_hex)
 
 
 
