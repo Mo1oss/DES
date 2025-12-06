@@ -252,7 +252,31 @@ def des_encrypt_block_64(plaintext_64, key_64):
     ciphertext_64 = apply_permutation(FP, swapped_64)
     return ciphertext_64
 
+ 
 
+
+ 
+# -----------------------------------------------------------
+# DES decryption (same as encryption but using reversed subkeys)
+# -----------------------------------------------------------
+def des_decrypt_block_64(ciphertext_64, key_64):
+    ciphertext_64_IP = apply_permutation(IP, ciphertext_64)
+    left_32, right_32 = ciphertext_64_IP[:32], ciphertext_64_IP[32:]
+    sub16keys_48 = generate_subkeys(key_64)[::-1]  # reverse order
+
+    for i in range(16):
+        new_left  = right_32
+        new_right = xor(left_32, feistel_function(right_32, sub16keys_48[i]))
+        left_32, right_32 = new_left, new_right
+
+    swapped_64 = right_32 + left_32
+    plaintext_64 = apply_permutation(FP, swapped_64)
+    return plaintext_64
+
+
+# -----------------------------------------------------------
+# Self-test using known DES test vector
+# -----------------------------------------------------------
 
 if __name__ == "__main__":
     plaintext_hex = "0123456789ABCDEF"
@@ -267,4 +291,16 @@ if __name__ == "__main__":
     print("Cipher (hex):", ciphertext_hex)
 
 
+    assert ciphertext_hex == "85E813540F0AB405"
 
+    decrypted_bin = des_decrypt_block_64(ciphertext_bin, key_bin)
+    decrypted_hex = bin64_to_hex16(decrypted_bin)
+
+    assert decrypted_hex == plaintext_hex
+
+    print("Plaintext (hex): ", plaintext_hex)
+    print("Key       (hex): ", key_hex)
+    print("Cipher    (hex): ", ciphertext_hex)
+    print("Decrypted (hex): ", decrypted_hex)
+    print("✔ All DES tests passed successfully!")
+ 
