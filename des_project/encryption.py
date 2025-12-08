@@ -1,7 +1,9 @@
 # encryption.py
 
+# Import permutation helper, XOR function, and DES key generator
 from key_schedule import apply_permutation, xor, generate_subkeys
 
+# Initial Permutation (IP) table used at the start of DES
 IP = [
     58, 50, 42, 34, 26, 18, 10,  2,
     60, 52, 44, 36, 28, 20, 12,  4,
@@ -13,6 +15,7 @@ IP = [
     63, 55, 47, 39, 31, 23, 15,  7
 ]
 
+# Final Permutation (FP) table applied at the end of DES
 FP = [
     40,  8, 48, 16, 56, 24, 64, 32,
     39,  7, 47, 15, 55, 23, 63, 31,
@@ -24,6 +27,7 @@ FP = [
     33,  1, 41,  9, 49, 17, 57, 25
 ]
 
+# Expansion table (E) expands 32 bits → 48 bits during Feistel step
 E = [
     32,  1,  2,  3,  4,  5,
      4,  5,  6,  7,  8,  9,
@@ -35,6 +39,7 @@ E = [
     28, 29, 30, 31, 32,  1
 ]
 
+# P-box permutation applied after S-box substitution
 P = [
     16,  7, 20, 21,
     29, 12, 28, 17,
@@ -46,6 +51,7 @@ P = [
     22, 11,  4, 25
 ]
 
+# DES S-Boxes (8 total) converting 6 bits → 4 bits
 S_BOXES = [
     [
         [14,4,13,1,2,15,11,8,3,10,6,12,5,9,0,7],
@@ -98,37 +104,61 @@ S_BOXES = [
 ]
 
 
+# Apply S-boxes to 48-bit input → produce 32-bit output
 def apply_sboxes(bits_48):
+    # Initialize 32-bit result
     bits_32  = ""
+    # Process 6 bits at a time for each S-box
     for i in range(8):
+        # Extract 6-bit block
         six_bits = bits_48[i*6:(i+1)*6]
+        # Determine S-box row from first and last bits
         row = int(six_bits[0] + six_bits[5], 2)
+        # Determine S-box column from middle four bits
         col = int(six_bits[1:5], 2)
+        # Lookup S-box result
         sbox_value = S_BOXES[i][row][col]
+        # Append 4-bit binary output
         bits_32 += format(sbox_value , "04b")
-
+    # Return final 32-bit result
     return bits_32 
 
 
+# Feistel function used in each DES round
 def feistel_function(right_32, subkeys_48):
+    # Expand 32-bit half to 48 bits
     right_48 = apply_permutation(E, right_32)
+    # XOR with round subkey
     xor_48 = xor(right_48, subkeys_48)
+    # Apply S-boxes to reduce 48 bits to 32 bits
     sbox_32 = apply_sboxes(xor_48)
+    # Apply P permutation
     right_32_feistel = apply_permutation(P, sbox_32)
-
+    # Return transformed 32-bit value
     return right_32_feistel
 
 
+# Encrypt a single 64-bit DES block
 def des_encrypt_block_64(plaintext_64, key_64):
+    # Apply Initial Permutation
     plaintext_64_IP = apply_permutation(IP, plaintext_64)
+    # Split permuted block into left/right halves
     left_32, right_32 = plaintext_64_IP[:32], plaintext_64_IP[32:]
+    # Generate 16 round subkeys
     sub16keys_48 = generate_subkeys(key_64)
 
+    # Perform 16 rounds of Feistel encryption
     for i in range(16):
+        # Next left = current right
         new_left  = right_32
+        # Next right = current left XOR F(right, subkey)
         new_right = xor(left_32, feistel_function(right_32, sub16keys_48[i]))
+        # Update halves
         left_32, right_32  = new_left, new_right
 
-    swapped_64 = right_32 + left_32 
+    # Swap halves after final round
+    swapped_64 = right_32 + left_32
+    # Apply Final Permutation
     ciphertext_64 = apply_permutation(FP, swapped_64)
+    # Return final ciphertext block
     return ciphertext_64

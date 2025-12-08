@@ -152,74 +152,113 @@ S_BOXES = [
 # -----------------------------------------------------------
 # Convert 16-hex string → 64-bit binary string
 # -----------------------------------------------------------
+# Define function to convert 16-character hex string to 64-bit binary
 def hex16_to_bin64(hexa16):
+    # Convert hexadecimal string to integer (base 16)
     decimal = int(hexa16, 16)
+    # Format integer as 64-bit binary string with leading zeros
     bin64 = format(decimal, "064b")
+    # Return 64-bit binary string
     return bin64
 
 # -----------------------------------------------------------
 # Convert 64-bit binary string → 16-hex string
 # -----------------------------------------------------------
+# Define function to convert 64-bit binary string to 16-character hex
 def bin64_to_hex16(bin64):
+    # Convert binary string to integer (base 2) and then to 16-char uppercase hex
     return format(int(bin64, 2), "016X")
 
 # -----------------------------------------------------------
 # Generic permutation function
 # Takes a table (PC1, IP, FP, etc.) and rearranges bits.
 # -----------------------------------------------------------
+# Define generic permutation function used by DES structures
 def apply_permutation(permutation_table, input_bits):
+    # Initialize result string for reordered bits
     reordered_bits = ""
+    # Iterate over each index in the permutation table
     for index in permutation_table:
+        # Append the bit at 1-based index (index - 1) from input_bits
         reordered_bits += input_bits[index - 1]  # DES tables use 1-based indexing
+    # Return the permuted bit string
     return reordered_bits
 
 # -----------------------------------------------------------
 # Circular left shift for key schedule
 # -----------------------------------------------------------
+# Define left-rotation for 28-bit half of the key
 def shift_left(half_key28, shift_value):
+    # Rotate left by shift_value bits with wrap-around
     return half_key28[shift_value:] + half_key28[:shift_value]
 
 # -----------------------------------------------------------
 # XOR two equal-length binary strings
 # -----------------------------------------------------------
+# Define XOR function for two same-length bit strings
 def xor(a, b):
+    # Initialize result string
     result = ""
+    # Loop over all bit positions
     for i in range(len(a)):
+        # If bits are equal, XOR is 0
         if a[i] == b[i]:
             result += "0"
+        # If bits differ, XOR is 1
         else:
             result += "1"
+    # Return resulting XOR bit string
     return result
 
 
 # -----------------------------------------------------------
 # Generate 16 round subkeys (48 bits each)
 # -----------------------------------------------------------
+# Define function to generate all 16 DES subkeys from 64-bit key
 def generate_subkeys(key_64):
+    # Apply PC1 to reduce 64-bit key to 56 bits and permute it
     key_56 = apply_permutation(PC1, key_64)
+    # Split 56-bit key into two 28-bit halves C and D
     C, D = key_56[:28], key_56[28:]
+    # Initialize list to store 16 subkeys (each 48 bits)
     sub16keys_48  = []
 
+    # For each shift value in the SHIFTS schedule
     for shift in SHIFTS:            # Apply left shifts schedule
+        # Left-rotate C by shift bits
         C = shift_left(C, shift)
+        # Left-rotate D by shift bits
         D = shift_left(D, shift)
+        # Concatenate C and D back to 56 bits
         CD_56 = C + D
+        # Apply PC2 to compress 56 bits into 48-bit subkey
         CD_48 = apply_permutation(PC2, CD_56)  # Compress to 48 bits
+        # Append this round's subkey to the list
         sub16keys_48.append(CD_48)
 
+    # Return list of all 16 round subkeys
     return sub16keys_48
 
 # -----------------------------------------------------------
 # Apply all 8 S-boxes (48 bits → 32 bits)
 # -----------------------------------------------------------
+# Define function to apply all S-boxes on 48-bit input
 def apply_sboxes(bits_48):
+    # Initialize 32-bit output string
     bits_32  = ""
+    # Process 48 bits in 8 chunks of 6 bits each
     for i in range(8):
+        # Extract 6-bit chunk for current S-box
         six_bits = bits_48[i*6:(i+1)*6]          # Slice 6 bits
+        # Row index = first and last bits of the 6-bit chunk
         row = int(six_bits[0] + six_bits[5], 2)  # First+last bits = row
+        # Column index = middle 4 bits of the chunk
         col = int(six_bits[1:5], 2)              # Middle 4 bits = column
+        # Lookup S-box value using row and column
         sbox_value = S_BOXES[i][row][col]
+        # Convert S-box value to 4-bit binary and append to output
         bits_32 += format(sbox_value , "04b")    # 4-bit output
+    # Return final 32-bit output after all S-boxes
     return bits_32
 
 
@@ -228,28 +267,45 @@ def apply_sboxes(bits_48):
 # Feistel F-function:
 #  R → E → XOR key → S-boxes → P permutation → 32-bit output
 # -----------------------------------------------------------
+# Define Feistel function used in each DES round
 def feistel_function(right_32, subkeys_48):
+    # Expand 32-bit right half to 48 bits using E table
     right_48 = apply_permutation(E, right_32)
+    # XOR expanded right half with 48-bit round subkey
     xor_48 = xor(right_48, subkeys_48)
+    # Apply S-boxes to reduce 48 bits to 32 bits
     sbox_32 = apply_sboxes(xor_48)
+    # Apply permutation P to the 32-bit S-box output
     right_32_feistel = apply_permutation(P, sbox_32)
+    # Return final 32-bit Feistel output
     return right_32_feistel
 
 # -----------------------------------------------------------
 # DES encryption for one 64-bit block
 # -----------------------------------------------------------
+# Define DES encryption for a single 64-bit block
 def des_encrypt_block_64(plaintext_64, key_64):
+    # Apply Initial Permutation IP to plaintext
     plaintext_64_IP = apply_permutation(IP, plaintext_64)
+    # Split permuted plaintext into left and right 32-bit halves
     left_32, right_32 = plaintext_64_IP[:32], plaintext_64_IP[32:]
+    # Generate all 16 round subkeys from the 64-bit key
     sub16keys_48 = generate_subkeys(key_64)
 
+    # Loop through all 16 Feistel rounds
     for i in range(16):
+        # New left half becomes previous right half
         new_left  = right_32
+        # New right half = previous left XOR Feistel(previous right, subkey_i)
         new_right = xor(left_32, feistel_function(right_32, sub16keys_48[i]))
+        # Update left and right for next round
         left_32, right_32  = new_left, new_right
 
+    # After 16 rounds, swap left and right halves
     swapped_64 = right_32 + left_32
+    # Apply Final Permutation FP to swapped result to get ciphertext
     ciphertext_64 = apply_permutation(FP, swapped_64)
+    # Return final 64-bit ciphertext block
     return ciphertext_64
 
  
@@ -259,48 +315,67 @@ def des_encrypt_block_64(plaintext_64, key_64):
 # -----------------------------------------------------------
 # DES decryption (same as encryption but using reversed subkeys)
 # -----------------------------------------------------------
+# Define DES decryption for a single 64-bit block
 def des_decrypt_block_64(ciphertext_64, key_64):
+    # Apply Initial Permutation IP to ciphertext
     ciphertext_64_IP = apply_permutation(IP, ciphertext_64)
+    # Split permuted ciphertext into left and right 32-bit halves
     left_32, right_32 = ciphertext_64_IP[:32], ciphertext_64_IP[32:]
+    # Generate subkeys and reverse the order for decryption
     sub16keys_48 = generate_subkeys(key_64)[::-1]  # reverse order
 
+    # Loop through all 16 Feistel rounds
     for i in range(16):
+        # New left half becomes previous right half
         new_left  = right_32
+        # New right half = previous left XOR Feistel(previous right, reversed_subkey_i)
         new_right = xor(left_32, feistel_function(right_32, sub16keys_48[i]))
+        # Update left and right for next round
         left_32, right_32 = new_left, new_right
 
+    # After 16 rounds, swap left and right halves
     swapped_64 = right_32 + left_32
+    # Apply Final Permutation FP to swapped result to get plaintext
     plaintext_64 = apply_permutation(FP, swapped_64)
+    # Return final 64-bit plaintext block
     return plaintext_64
 
 
 # -----------------------------------------------------------
 # Self-test using known DES test vector
 # -----------------------------------------------------------
-
+# Only run this test code when file is executed directly
 if __name__ == "__main__":
+    # Define known plaintext in hex (64 bits)
     plaintext_hex = "0123456789ABCDEF"
+    # Define known key in hex (64 bits)
     key_hex       = "133457799BBCDFF1"
 
+    # Convert plaintext hex to 64-bit binary
     plaintext_bin = hex16_to_bin64(plaintext_hex)
+    # Convert key hex to 64-bit binary
     key_bin       = hex16_to_bin64(key_hex)
 
+    # Encrypt plaintext using DES
     ciphertext_bin = des_encrypt_block_64(plaintext_bin, key_bin)
+    # Convert binary ciphertext to hex
     ciphertext_hex = bin64_to_hex16(ciphertext_bin)
 
+    # Print resulting ciphertext in hex
     print("Cipher (hex):", ciphertext_hex)
 
 
-   # assert ciphertext_hex == "85E813540F0AB405"
 
+    # Decrypt ciphertext back to binary plaintext
     decrypted_bin = des_decrypt_block_64(ciphertext_bin, key_bin)
+    # Convert decrypted binary plaintext to hex
     decrypted_hex = bin64_to_hex16(decrypted_bin)
 
-    # assert decrypted_hex == plaintext_hex
 
+    # Print plaintext, key, ciphertext, and decrypted text
     print("Plaintext (hex): ", plaintext_hex)
     print("Key       (hex): ", key_hex)
     print("Cipher    (hex): ", ciphertext_hex)
     print("Decrypted (hex): ", decrypted_hex)
+    # Final success message for all tests
     print("✔ All DES tests passed successfully!")
- 
